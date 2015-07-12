@@ -101,6 +101,7 @@ void qSlicerPancreaticLUSModuleWidget::generateVolume()
 {
  //   clearData();
     Q_D(qSlicerPancreaticLUSModuleWidget);
+
     d->progressBar->setValue(0);
     this->blockSignals(true);
 
@@ -325,7 +326,16 @@ void qSlicerPancreaticLUSModuleWidget::loadSettings()
     Q_D(qSlicerPancreaticLUSModuleWidget);
 
     d->offset0SpinBox->setValue(this->settings->value("offset0",0).toInt());
+    d->offset1SpinBox->setValue(this->settings->value("offset1",0).toInt());
+    d->offset2SpinBox->setValue(this->settings->value("offset2",0).toInt());
+    d->numberOfImagesSpinBox->setValue(this->settings->value("numberOfImages",1700).toInt());
 
+    int interpolation = this->settings->value("interpolationMethod",0).toInt();
+    //FIXME magic numbers
+    if(interpolation == 0) d->nearestRadioButton->setChecked(true);
+    else if(interpolation == 1)  d->trilinearRadioButton->setChecked(true);
+    this->tsvFilePath = this->settings->value("tsvFile","").toString();
+    this->folderPath = this->settings->value("imagesFolder","").toString();
 }
 
 
@@ -338,5 +348,6 @@ void qSlicerPancreaticLUSModuleWidget::saveSettings()
     this->settings->setValue("offset0",d->offset0SpinBox->value());
     this->settings->setValue("offset1",d->offset1SpinBox->value());
     this->settings->setValue("offset2",d->offset2SpinBox->value());
-
+    this->settings->setValue("numberOfImages",d->numberOfImagesSpinBox->value());
+    this->settings->setValue("interpolationMethod",this->interpolationMethod);
 }
