@@ -1,3 +1,3 @@
-Pancreatic LUS Reconstruction
+# PacreaticLUSSlicer
 
-Slicer module
+Module for Slicer
