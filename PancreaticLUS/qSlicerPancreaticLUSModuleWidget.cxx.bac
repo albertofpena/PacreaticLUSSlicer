@@ -1,0 +1,240 @@
+/*==============================================================================
+
+  Program: 3D Slicer
+
+  Portions (c) Copyright Brigham and Women's Hospital (BWH) All Rights Reserved.
+
+  See COPYRIGHT.txt
+  or http://www.slicer.org/copyright/copyright.txt for details.
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+==============================================================================*/
+
+// Qt includes
+#include <QDebug>
+
+// SlicerQt includes
+#include "qSlicerPancreaticLUSModuleWidget.h"
+#include "ui_qSlicerPancreaticLUSModuleWidget.h"
+
+// CTK includes
+#include "ctkButtonGroup.h"
+#include "ctkPushButton.h"
+
+
+//-----------------------------------------------------------------------------
+/// \ingroup Slicer_QtModules_ExtensionTemplate
+class qSlicerPancreaticLUSModuleWidgetPrivate: public Ui_qSlicerPancreaticLUSModuleWidget
+{
+public:
+  qSlicerPancreaticLUSModuleWidgetPrivate();
+  //void setupUi(qSlicerWidget* widget);
+};
+
+//-----------------------------------------------------------------------------
+// qSlicerPancreaticLUSModuleWidgetPrivate methods
+
+//-----------------------------------------------------------------------------
+qSlicerPancreaticLUSModuleWidgetPrivate::qSlicerPancreaticLUSModuleWidgetPrivate()
+{
+}
+
+//-----------------------------------------------------------------------------
+//void qSlicerPancreaticLUSModuleWidgetPrivate::setupUi(qSlicerWidget *widget)
+//{
+//}
+
+//-----------------------------------------------------------------------------
+// qSlicerPancreaticLUSModuleWidget methods
+
+//-----------------------------------------------------------------------------
+qSlicerPancreaticLUSModuleWidget::qSlicerPancreaticLUSModuleWidget(QWidget* _parent)
+  : Superclass( _parent )
+  , d_ptr( new qSlicerPancreaticLUSModuleWidgetPrivate )
+{
+}
+
+//-----------------------------------------------------------------------------
+qSlicerPancreaticLUSModuleWidget::~qSlicerPancreaticLUSModuleWidget()
+{
+}
+
+//-----------------------------------------------------------------------------
+void qSlicerPancreaticLUSModuleWidget::setup()
+{
+  Q_D(qSlicerPancreaticLUSModuleWidget);
+  d->setupUi(this);
+
+  connect(d->pushButton,SIGNAL(clicked()),this,SLOT(generateVolume()));
+  connect(d->openFileButton,SIGNAL(clicked()),this,SLOT(getFileName()));
+  this->positions = vtkSmartPointer<vtkPoints>::New();
+  this->directions = vtkSmartPointer<vtkPoints>::New();
+  this->pngReader = vtkSmartPointer<vtkPNGReader>::New();
+  for(int i = 0; i < 6; i++)
+  {
+      this->outputExtent[i] = 0;
+  }
+  this->ReconstructedVolume = vtkImageData::New();
+  this->ReconstructedVolume->SetSpacing(1.0,1.0,1.0);
+  this->transformImageToReference = vtkSmartPointer<vtkMatrix4x4>::New();
+  this->sliceAdder = new InsertSlice;
+
+  this->Superclass::setup();
+}
+
+void qSlicerPancreaticLUSModuleWidget::generateVolume()
+{
+    trackerParser *parser = new trackerParser(this);
+    parser->parseTSVFile("/media/datos/ETSIT/PFC/pseudotumor/datos_tracker/Pancreas_Rec1.tsv",this->positions,this->directions);
+
+    qDebug() << "number of positions read" << this->positions->GetNumberOfPoints();
+
+    for(int i = 0; i < 1700; i++)
+    {
+        readPNGImages("/media/datos/ETSIT/PFC/pseudotumor/VTS_01_1", i);
+    }
+    setOutputExtent();
+    for(int i = 0; i < 1700; i++)
+    {
+     //   qDebug() << "va";
+        this->sliceAdder->pasteSlice(this->imageDataSet[i].image,this->imageDataSet[i].transformation);
+     //   qDebug() << "no va";
+    }
+    qDebug() << "holis";
+    this->ReconstructedVolume = this->sliceAdder->getReconstructedVolume();
+    qDebug() << "ay mama";
+    vtkNew<vtkMRMLVectorVolumeNode> volumeNode;
+    volumeNode->SetAndObserveImageData(this->ReconstructedVolume);
+    qDebug() << "peta?";
+  //  volumeNode->SetOrigin(this->ReconstructedVolume->GetOrigin());
+    qDebug() << "ahora?";
+  //  volumeNode->SetSpacing(this->ReconstructedVolume->GetSpacing());
+    qDebug() << "esto?";
+    vtkSmartPointer<vtkMRMLScene> mrmlScene = vtkSmartPointer<vtkMRMLScene>::New();
+    mrmlScene = this->mrmlScene();
+    mrmlScene->AddNode(volumeNode.GetPointer());
+
+    vtkNew<vtkMRMLVectorVolumeDisplayNode> displayNode;
+    mrmlScene->AddNode(displayNode.GetPointer());
+    volumeNode->SetAndObserveDisplayNodeID(displayNode->GetID());
+}
+
+void qSlicerPancreaticLUSModuleWidget::readPNGImages(QString directory, int index)
+{
+    vtkSmartPointer<vtkImageData> outImage = vtkImageData::New();
+    QString fileName = QString("%1/crop%2.png").arg(directory).arg(QString::number(index+1));
+    QByteArray byteArray = fileName.toUtf8();
+    const char* cString = byteArray.constData();
+
+    this->pngReader->SetFileName(cString);
+    this->pngReader->Update();
+  //  qDebug() << "Reading" << this->pngReader->GetFileName();
+    outImage = this->pngReader->GetOutput();
+
+    double *pos = {this->positions->GetPoint(index)};
+    double *rot = {this->directions->GetPoint(index)};
+
+    vtkTransform *transform = vtkTransform::New();
+    transform->Identity();
+    transform->PreMultiply();
+    transform->Scale(0.1,0.1,0.1);
+    transform->RotateZ(rot[0]);
+    transform->RotateX(rot[1]);
+    transform->RotateY(rot[2]);
+    transform->PostMultiply();
+    transform->Translate(pos[1],pos[0],pos[2]);
+    transform->Update();
+    addImageToDataSet(outImage,transform->GetMatrix(),index);
+    transform->Delete();
+    outImage->Delete();
+}
+
+void qSlicerPancreaticLUSModuleWidget::setOutputExtent()
+{
+    double extent_Ref[6] =
+    {
+        VTK_DOUBLE_MAX, VTK_DOUBLE_MIN,
+        VTK_DOUBLE_MAX, VTK_DOUBLE_MIN,
+        VTK_DOUBLE_MAX, VTK_DOUBLE_MIN
+    };
+
+
+    for (int i = 0; i < 1700; ++i)
+    {
+        int *frameExtent = this->imageDataSet[i].image->GetExtent();
+     //   qDebug() << "Extent reslice" << frameExtent[0] << frameExtent[1] << frameExtent[2] << frameExtent[3] << frameExtent[4] << frameExtent[5];
+        std::vector<double*> corners_ImagePix;
+        double minX = frameExtent[0];
+        double maxX = frameExtent[1];
+        double minY = frameExtent[2];
+        double maxY = frameExtent[3];
+
+        double c0[4] = {minX,minY,0,1};
+        double c1[4] = {minX,maxY,0,1};
+        double c2[4] = {maxX,minY,0,1};
+        double c3[4] = {maxX,maxY,0,1};
+        corners_ImagePix.push_back(c0);
+        corners_ImagePix.push_back(c1);
+        corners_ImagePix.push_back(c2);
+        corners_ImagePix.push_back(c3);
+
+        // transform the corners to Reference and expand the extent if needed
+        for (unsigned int corner = 0; corner < corners_ImagePix.size(); ++corner)
+        {
+            double corner_Ref[ 4 ] = { 0, 0, 0, 1 }; // position of the corner in the Reference coordinate system
+            this->imageDataSet[i].transformation->MultiplyPoint(corners_ImagePix[corner], corner_Ref);
+
+            for ( int axis = 0; axis < 3; axis ++ )
+            {
+                if ( corner_Ref[axis] < extent_Ref[axis*2] )
+                {
+                    // min extent along this coord axis has to be decreased
+                    extent_Ref[axis*2]=corner_Ref[axis];
+                }
+                if ( corner_Ref[axis] > extent_Ref[axis*2+1] )
+                {
+                    // max extent along this coord axis has to be increased
+                    extent_Ref[axis*2+1]=corner_Ref[axis];
+                }
+            }
+        }
+    }
+
+    double* outputSpacing = this->ReconstructedVolume->GetSpacing();
+    this->outputExtent[1] = int((extent_Ref[1] - extent_Ref[0]) / outputSpacing[0]);
+    this->outputExtent[3] = int((extent_Ref[3] - extent_Ref[2]) / outputSpacing[1]);
+    this->outputExtent[5] = int((extent_Ref[5] - extent_Ref[4]) / outputSpacing[2]);
+
+    this->ReconstructedVolume->SetOrigin(extent_Ref[0], extent_Ref[2], extent_Ref[4]);
+    double* outputOrigin = this->ReconstructedVolume->GetOrigin();
+
+    this->sliceAdder->setOutputExtent(this->outputExtent);
+    this->sliceAdder->setOutputOrigin(outputOrigin);
+    this->sliceAdder->setOutputSpacing(outputSpacing);
+    qDebug() << "Volume origin:" << extent_Ref[0] << extent_Ref[2] << extent_Ref[4];
+    qDebug() << "Extent size: " << outputExtent[0] << outputExtent[1] << outputExtent[2] << outputExtent[3] << outputExtent[4] << outputExtent[5];
+    qDebug() << "Extent size: " << extent_Ref[0] << extent_Ref[1] << extent_Ref[2] << extent_Ref[3] << extent_Ref[4] << extent_Ref[5];
+
+    if (this->sliceAdder->resetOutput() != 1)
+    {
+        qDebug() << "Error, failed to initialize output volume";
+    }
+}
+
+void qSlicerPancreaticLUSModuleWidget::addImageToDataSet(vtkSmartPointer<vtkImageData> newImage, vtkSmartPointer<vtkMatrix4x4> newTransform, int index)
+{
+    this->imageDataSet[index].image = newImage;
+    this->imageDataSet[index].transformation = newTransform;
+}
+
+QString qSlicerPancreaticLUSModuleWidget::getFileName()
+{
+    QString fileName = QFileDialog::getExistingDirectory(this,tr("Open Directory"),"",QFileDialog::ShowDirsOnly);
+    qDebug() << "File" << fileName;
+    return fileName;
+}
