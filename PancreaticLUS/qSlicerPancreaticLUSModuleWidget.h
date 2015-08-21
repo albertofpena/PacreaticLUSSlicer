@@ -43,6 +43,7 @@
 #include <vtkMRMLVectorVolumeDisplayNode.h>
 #include <vtkMRMLColorTableNode.h>
 #include <vtkImageExtractComponents.h>
+#include <vtkImageReslice.h>
 
 // Project includes
 #include "Logic/trackerParser.h"
@@ -85,7 +86,8 @@ private:
   Q_DECLARE_PRIVATE(qSlicerPancreaticLUSModuleWidget);
   Q_DISABLE_COPY(qSlicerPancreaticLUSModuleWidget);
 
-  int imagesToProcess;
+  int firstImageToProcess;
+  int lastImageToProcess;
   int interpolationMethod;
   int outputExtent[6];
   vtkSmartPointer<vtkImageData> ReconstructedVolume;

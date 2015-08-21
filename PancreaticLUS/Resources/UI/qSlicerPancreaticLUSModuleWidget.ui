@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>525</width>
-    <height>381</height>
+    <height>396</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -41,14 +41,24 @@
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_2">
         <item>
-         <widget class="QLabel" name="imagesToLoadLabel">
+         <widget class="QLabel" name="firstImageLabel">
           <property name="text">
-           <string>Number of images to load</string>
+           <string>First Image</string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QSpinBox" name="numberOfImagesSpinBox">
+         <widget class="QSpinBox" name="firstImageSpinBox"/>
+        </item>
+        <item>
+         <widget class="QLabel" name="lastImageLabel">
+          <property name="text">
+           <string>Last Image</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="lastImageSpinBox">
           <property name="minimum">
            <number>1</number>
           </property>
@@ -118,7 +128,7 @@
         <item>
          <widget class="QRadioButton" name="trilinearRadioButton">
           <property name="text">
-           <string>Trilinear Interpolation</string>
+           <string>Tri&amp;linear Interpolation</string>
           </property>
          </widget>
         </item>
