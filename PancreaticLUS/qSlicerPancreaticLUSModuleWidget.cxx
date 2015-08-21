@@ -1,4 +1,4 @@
-/*==============================================================================
+ /*==============================================================================
 
   Program: 3D Slicer
 
@@ -75,7 +75,8 @@ void qSlicerPancreaticLUSModuleWidget::setup()
   connect(d->openTSVFileButton,SIGNAL(clicked()),this,SLOT(getTSVFileName()));
   d->progressBar->setValue(0);
   d->nearestRadioButton->setChecked(true);
-  this->imagesToProcess = 0;
+  this->firstImageToProcess = 0;
+  this->lastImageToProcess = 1700;
   this->interpolationMethod = 0;
   this->currentImage = vtkSmartPointer<vtkImageData>::New();
   this->positions = vtkSmartPointer<vtkPoints>::New();
@@ -89,6 +90,24 @@ void qSlicerPancreaticLUSModuleWidget::setup()
   this->ReconstructedVolume->SetSpacing(1.0,1.0,1.0);
   this->transformImageToReference = vtkSmartPointer<vtkMatrix4x4>::New();
   this->sliceAdder = new InsertSlice;
+
+  this->finalTransform = vtkSmartPointer<vtkMatrix4x4>::New();
+  this->finalTransform->SetElement(0, 0, -0.093);
+  this->finalTransform->SetElement(0, 1, 0.9995);
+  this->finalTransform->SetElement(0, 2, -0.0308);
+  this->finalTransform->SetElement(0, 3, 30.3203);
+  this->finalTransform->SetElement(1, 0, -0.9998);
+  this->finalTransform->SetElement(1, 1, -0.0088);
+  this->finalTransform->SetElement(1, 2, 0.0161);
+  this->finalTransform->SetElement(1, 3, 13.8054);
+  this->finalTransform->SetElement(2, 0, 0.0159);
+  this->finalTransform->SetElement(2, 1, 0.0309);
+  this->finalTransform->SetElement(2, 2, 0.9994);
+  this->finalTransform->SetElement(2, 3, 155.7054);
+  this->finalTransform->SetElement(3, 0, 0);
+  this->finalTransform->SetElement(3, 1, 0);
+  this->finalTransform->SetElement(3, 2, 0);
+  this->finalTransform->SetElement(3, 3, 1);
 
   this->settings = new QSettings("pancreaticLUSModule","Settings");
 
@@ -171,8 +190,9 @@ void qSlicerPancreaticLUSModuleWidget::generateVolume()
     colorNode->SetTypeToGrey();
     this->mrmlScene()->AddNode(colorNode);
     volumeNode->SetAndObserveImageData(this->ReconstructedVolume);
-    volumeNode->SetOrigin(this->ReconstructedVolume->GetOrigin());
-    volumeNode->SetSpacing(this->ReconstructedVolume->GetSpacing());
+
+  //  volumeNode->SetOrigin(this->ReconstructedVolume->GetOrigin());
+  //  volumeNode->SetSpacing(this->ReconstructedVolume->GetSpacing());
     this->mrmlScene()->AddNode(volumeNode.GetPointer());
     vtkNew<vtkMRMLVectorVolumeDisplayNode> displayNode;
     displayNode->SetAndObserveColorNodeID(colorNode->GetID());
@@ -205,7 +225,6 @@ vtkSmartPointer<vtkImageData> qSlicerPancreaticLUSModuleWidget::readPNGImages(QS
     outImage = this->pngReader->GetOutput();
     //this->transformImageToReference[index] = vtkSmartPointer<vtkMatrix4x4>::New();
 
-
     double *pos = {this->positions->GetPoint(index)};
     double *rot = {this->directions->GetPoint(index)};
 
@@ -218,12 +237,13 @@ vtkSmartPointer<vtkImageData> qSlicerPancreaticLUSModuleWidget::readPNGImages(QS
 //    transform->PostMultiply();
 //    transform->Translate(pos[1]+ offset0,pos[2] + offset1 ,pos[0] + offset2);
     transform->PreMultiply();
-    transform->RotateZ(rot[0]);
-    transform->RotateX(rot[1]);
-    transform->RotateY(rot[2]);
+    transform->RotateZ(rot[2]);
+    transform->RotateX(rot[0]);
+    transform->RotateY(rot[1]+90);
     transform->Scale(0.1,0.1,0.1);
     transform->PostMultiply();
-    transform->Translate(pos[1]+ offset0,pos[2] + offset1 ,pos[0] + offset2);
+    transform->Translate(pos[0],pos[1],pos[2]);
+    transform->Concatenate(this->finalTransform);
     transform->Update();
     transform->GetMatrix(this->transformImageToReference);
 //    qDebug() << this->transformImageToReference->GetElement(0,0) << this->transformImageToReference->GetElement(0,1) << this->transformImageToReference->GetElement(0,2) << this->transformImageToReference->GetElement(0,3) << "\n"
@@ -348,6 +368,7 @@ void qSlicerPancreaticLUSModuleWidget::saveSettings()
     this->settings->setValue("offset0",d->offset0SpinBox->value());
     this->settings->setValue("offset1",d->offset1SpinBox->value());
     this->settings->setValue("offset2",d->offset2SpinBox->value());
-    this->settings->setValue("numberOfImages",d->numberOfImagesSpinBox->value());
+    this->settings->setValue("firstImage",d->firstImageSpinBox->value());
+    this->settings->setValue("lastImage",d->lastImageSpinBox->value());
     this->settings->setValue("interpolationMethod",this->interpolationMethod);
 }
