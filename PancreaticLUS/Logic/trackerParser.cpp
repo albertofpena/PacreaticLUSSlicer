@@ -56,6 +56,7 @@ void trackerParser::parseTSVFile(QString inputFile, vtkSmartPointer<vtkPoints> p
         for (tokenizer::iterator tok_iter = tok.begin(); tok_iter != tok.end(); ++tok_iter)
         {
             string str = *tok_iter;
+
             double w = atof(str.c_str());
 
             if (this->i == 17)
@@ -95,7 +96,6 @@ void trackerParser::parseTSVFile(QString inputFile, vtkSmartPointer<vtkPoints> p
 
         positions->InsertNextPoint(point);
         directions->InsertNextPoint(angle);
-
         this->i = 0;
     }
     input.close();

@@ -287,6 +287,7 @@ static void outputSliceTransformation(vtkPasteSliceIntoVolumeInsertSliceParams *
     inData->GetContinuousIncrements(inExt, inIncX, inIncY, inIncZ);
     int numscalars = inData->GetNumberOfScalarComponents();
  //   qDebug() << "Number of Scalar components:" << numscalars;
+
     double point[4];
     double inPoint[4];
     inPoint[3] = 1;

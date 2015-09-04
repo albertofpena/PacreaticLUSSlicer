@@ -21,7 +21,6 @@
 // SlicerQt includes
 #include "qSlicerAbstractModuleWidget.h"
 #include "qSlicerCoreApplication.h"
-
 #include "qSlicerPancreaticLUSModuleExport.h"
 
 // Qt includes

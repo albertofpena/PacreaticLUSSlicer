@@ -111,6 +111,8 @@ void qSlicerPancreaticLUSModuleWidget::setup()
   this->finalTransform->SetElement(3, 2, 0);
   this->finalTransform->SetElement(3, 3, 1);
 
+  this->settings = new QSettings("pancreaticLUSModule","Settings");
+
   loadSettings();
 
   this->Superclass::setup();
@@ -144,7 +146,6 @@ void qSlicerPancreaticLUSModuleWidget::generateVolume()
         messageBox.critical(0,"Error","Error in number of images");
         return;
     }
-
     if(d->nearestRadioButton->isChecked()) this->interpolationMethod = 0;
     else if(d->trilinearRadioButton->isChecked()) this->interpolationMethod = 1;
 
@@ -229,7 +230,6 @@ vtkSmartPointer<vtkImageData> qSlicerPancreaticLUSModuleWidget::readPNGImages(QS
     outImage = this->pngReader->GetOutput();
     //this->transformImageToReference[index] = vtkSmartPointer<vtkMatrix4x4>::New();
 
-
     double *pos = {this->positions->GetPoint(index)};
     double *rot = {this->directions->GetPoint(index)};
 
@@ -275,7 +275,6 @@ void qSlicerPancreaticLUSModuleWidget::setOutputExtent()
         VTK_DOUBLE_MAX, VTK_DOUBLE_MIN
     };
 
-
     for (int i = this->firstImageToProcess; i < this->lastImageToProcess; ++i)
     {
         progressValue = 25*(i - this->firstImageToProcess)/(this->lastImageToProcess - this->firstImageToProcess);
@@ -303,7 +302,6 @@ void qSlicerPancreaticLUSModuleWidget::setOutputExtent()
         {
             double corner_Ref[ 4 ] = { 0, 0, 0, 1 }; // position of the corner in the Reference coordinate system
             this->transformImageToReference->MultiplyPoint(corners_ImagePix[corner], corner_Ref);
-
             for (int axis = 0; axis < 3; ++axis)
             {
                 if (corner_Ref[axis] < extent_Ref[axis*2])
@@ -326,7 +324,6 @@ void qSlicerPancreaticLUSModuleWidget::setOutputExtent()
     this->outputExtent[5] = int((extent_Ref[5] - extent_Ref[4]) / outputSpacing[2]);
 
     this->ReconstructedVolume->SetOrigin(extent_Ref[0], extent_Ref[2], extent_Ref[4]);
-
     double* outputOrigin = this->ReconstructedVolume->GetOrigin();
 
     this->sliceAdder->setOutputExtent(this->outputExtent);
@@ -345,14 +342,12 @@ void qSlicerPancreaticLUSModuleWidget::setOutputExtent()
 void qSlicerPancreaticLUSModuleWidget::getFileName()
 {
     Q_D(qSlicerPancreaticLUSModuleWidget);
-
     this->folderPath = QFileDialog::getExistingDirectory(this,tr("Open Directory"),this->folderPath,QFileDialog::ShowDirsOnly);
 }
 
 void qSlicerPancreaticLUSModuleWidget::getTSVFileName()
 {
     Q_D(qSlicerPancreaticLUSModuleWidget);
-
     this->tsvFilePath = QFileDialog::getOpenFileName(this,tr("Choose TSV file"),this->tsvFilePath,tr("TSV File (*.tsv)"));
 }
 
@@ -367,7 +362,6 @@ void qSlicerPancreaticLUSModuleWidget::loadSettings()
     d->lastImageSpinBox->setValue(this->settings->value("lastImage",1700).toInt());
 
     int interpolation = this->settings->value("interpolationMethod",0).toInt();
-    //FIXME magic numbers
     if(interpolation == 0) d->nearestRadioButton->setChecked(true);
     else if(interpolation == 1)  d->trilinearRadioButton->setChecked(true);
     this->tsvFilePath = this->settings->value("tsvFile","").toString();
