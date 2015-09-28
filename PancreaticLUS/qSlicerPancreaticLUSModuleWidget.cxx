@@ -97,15 +97,15 @@ void qSlicerPancreaticLUSModuleWidget::setup()
   this->finalTransform->SetElement(0, 0, 1);
   this->finalTransform->SetElement(0, 1, 0);
   this->finalTransform->SetElement(0, 2, 0);
-  this->finalTransform->SetElement(0, 3, 30.3203);
+  this->finalTransform->SetElement(0, 3, 34.3203);
   this->finalTransform->SetElement(1, 0, 0);
   this->finalTransform->SetElement(1, 1, -1);
   this->finalTransform->SetElement(1, 2, 0);
-  this->finalTransform->SetElement(1, 3, 6.8054);
+  this->finalTransform->SetElement(1, 3, 2.8054);
   this->finalTransform->SetElement(2, 0, 0);
   this->finalTransform->SetElement(2, 1, 0);
   this->finalTransform->SetElement(2, 2, 1);
-  this->finalTransform->SetElement(2, 3, 155.7054);
+  this->finalTransform->SetElement(2, 3, 152.7054);
   this->finalTransform->SetElement(3, 0, 0);
   this->finalTransform->SetElement(3, 1, 0);
   this->finalTransform->SetElement(3, 2, 0);
@@ -171,11 +171,6 @@ void qSlicerPancreaticLUSModuleWidget::generateVolume()
     vtkSmartPointer<vtkImageData> extractionData = vtkSmartPointer<vtkImageData>::New();
     extractionData->DeepCopy(extract->GetOutput());
 
-//    vtkNew<vtkMetaImageWriter> writer;
-//    writer->SetInputData(extractionData);
-//    writer->SetFileName("/home/alberto/Video2Segmented1.mha");
-//    writer->Write();
-
     extractionData->SetOrigin(0,0,0);
 
     vtkNew<vtkMRMLScalarVolumeDisplayNode> displayNode;
@@ -236,9 +231,9 @@ vtkSmartPointer<vtkImageData> qSlicerPancreaticLUSModuleWidget::readPNGImages(QS
     double traslatedPos[3];
 
     // Calculate the tracker coordinates traslated to the superior corner of the image
-    traslatedPos[2] = pos[2] - 12;
-    traslatedPos[0] = (rot[0]/rot[2])*-12+pos[0];
-    traslatedPos[1] = (rot[1]/rot[2])*-12+pos[1];
+    traslatedPos[2] = pos[2] - 10;
+    traslatedPos[0] = (rot[2]/rot[0])*-10+pos[2];
+    traslatedPos[1] = (rot[1]/rot[0])*-10+pos[1];
 
 //    qDebug() << pos[0] << pos[1] << pos[2] << "|" << traslatedPos[0] << traslatedPos[1] << traslatedPos[2];
 
@@ -246,9 +241,9 @@ vtkSmartPointer<vtkImageData> qSlicerPancreaticLUSModuleWidget::readPNGImages(QS
     transform->Identity();
     transform->PreMultiply();
     transform->Scale(0.05,0.05,0.05);
-    transform->RotateZ(rot[0]);
+    transform->RotateZ(rot[2]);
     transform->RotateX(rot[1]);
-    transform->RotateY(rot[2]);
+    transform->RotateY(rot[0]);
     transform->PostMultiply();
     transform->Translate(traslatedPos[1],traslatedPos[0],traslatedPos[2]);
     transform->Concatenate(this->finalTransform);
@@ -355,12 +350,8 @@ void qSlicerPancreaticLUSModuleWidget::loadSettings()
 {
     Q_D(qSlicerPancreaticLUSModuleWidget);
 
-    d->offset0SpinBox->setValue(this->settings->value("offset0",0).toInt());
-    d->offset1SpinBox->setValue(this->settings->value("offset1",0).toInt());
-    d->offset2SpinBox->setValue(this->settings->value("offset2",0).toInt());
     d->firstImageSpinBox->setValue(this->settings->value("firstImage",0).toInt());
     d->lastImageSpinBox->setValue(this->settings->value("lastImage",1700).toInt());
-
     int interpolation = this->settings->value("interpolationMethod",0).toInt();
     if(interpolation == 0) d->nearestRadioButton->setChecked(true);
     else if(interpolation == 1)  d->trilinearRadioButton->setChecked(true);
@@ -375,9 +366,6 @@ void qSlicerPancreaticLUSModuleWidget::saveSettings()
 
     this->settings->setValue("tsvFile",this->tsvFilePath);
     this->settings->setValue("imagesFolder",this->folderPath);
-    this->settings->setValue("offset0",d->offset0SpinBox->value());
-    this->settings->setValue("offset1",d->offset1SpinBox->value());
-    this->settings->setValue("offset2",d->offset2SpinBox->value());
     this->settings->setValue("firstImage",d->firstImageSpinBox->value());
     this->settings->setValue("lastImage",d->lastImageSpinBox->value());
     this->settings->setValue("interpolationMethod",this->interpolationMethod);

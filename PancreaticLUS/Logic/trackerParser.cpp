@@ -62,7 +62,7 @@ void trackerParser::parseTSVFile(QString inputFile, vtkSmartPointer<vtkPoints> p
             if (this->i == 17)
             {
                 // Reading Rz
-                this->rz = w;
+                this->rx = w;
             }
             if (this->i == 18)
             {
@@ -71,8 +71,8 @@ void trackerParser::parseTSVFile(QString inputFile, vtkSmartPointer<vtkPoints> p
             }
             if (this->i == 19)
             {
-                // Reading Rz
-                this->rx = w;
+                // Reading Rx
+                this->rz = w;
             }
             if (this->i == 20)
             {
