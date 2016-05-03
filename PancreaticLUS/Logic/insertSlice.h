@@ -26,7 +26,7 @@ private:
 
 
 public slots:
-    int pasteSlice(vtkImageData *image, vtkMatrix4x4 *transformation, int interpolationMethod);
+    int pasteSlice(vtkImageData *image, vtkMatrix4x4 *transformation, int interpolationMethod, CompoundingType compositionMethod);
     int resetOutput();
     virtual vtkImageData* getReconstructedVolume();
     virtual vtkImageData* getAccumulationBuffer();

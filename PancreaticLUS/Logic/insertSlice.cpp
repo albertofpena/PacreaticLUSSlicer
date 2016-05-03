@@ -24,7 +24,7 @@ InsertSlice::InsertSlice(QObject *parent) :
     this->OutputExtent[5] = 0;
 }
 
-int InsertSlice::pasteSlice(vtkImageData *image, vtkMatrix4x4 *transformation, int interpolationMethod)
+int InsertSlice::pasteSlice(vtkImageData *image, vtkMatrix4x4 *transformation, int interpolationMethod, CompoundingType compositionMethod)
 {
     int inputFrameExtent[6];
     image->GetExtent(inputFrameExtent);
@@ -63,7 +63,8 @@ int InsertSlice::pasteSlice(vtkImageData *image, vtkMatrix4x4 *transformation, i
     tImagePixToVolumePix->GetMatrix(mImagePixToVolumePix);
 
     // TODO initialize accBufferErrors or remove it if unused
-    unsigned int *accBufferErrors;
+    unsigned int tmp = 0;
+    unsigned int *accBufferErrors = &tmp;
     vtkPasteSliceIntoVolumeInsertSliceParams insertionParams;
     insertionParams.accOverflowCount = accBufferErrors;
     insertionParams.accPtr = accPtr;
@@ -85,7 +86,7 @@ int InsertSlice::pasteSlice(vtkImageData *image, vtkMatrix4x4 *transformation, i
     insertionParams.matrix = newmatrix;
 
 //    qDebug() << "Image Scalar Type" << image->GetScalarTypeAsString();
-    outputSliceTransformation<double, unsigned char>(&insertionParams,interpolationMethod);
+    outputSliceTransformation<double, unsigned char>(&insertionParams,interpolationMethod,compositionMethod);
 
     return 1;
 }

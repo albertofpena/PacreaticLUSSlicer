@@ -75,6 +75,7 @@ void qSlicerPancreaticLUSModuleWidget::setup()
   connect(d->openTSVFileButton,SIGNAL(clicked()),this,SLOT(getTSVFileName()));
   d->progressBar->setValue(0);
   d->nearestRadioButton->setChecked(true);
+  d->meanRadioButton->setChecked(true);
   this->firstImageToProcess = 0;
   this->lastImageToProcess = 1700;
   this->interpolationMethod = 0;
@@ -101,7 +102,7 @@ void qSlicerPancreaticLUSModuleWidget::setup()
   this->finalTransform->SetElement(1, 0, 0);
   this->finalTransform->SetElement(1, 1, -1);
   this->finalTransform->SetElement(1, 2, 0);
-  this->finalTransform->SetElement(1, 3, 2.8054);
+  this->finalTransform->SetElement(1, 3, 3.8054);
   this->finalTransform->SetElement(2, 0, 0);
   this->finalTransform->SetElement(2, 1, 0);
   this->finalTransform->SetElement(2, 2, 1);
@@ -120,11 +121,9 @@ void qSlicerPancreaticLUSModuleWidget::setup()
 
 void qSlicerPancreaticLUSModuleWidget::generateVolume()
 {
- //   clearData();
     Q_D(qSlicerPancreaticLUSModuleWidget);
 
     d->progressBar->setValue(0);
-    this->blockSignals(true);
 
     trackerParser *parser = new trackerParser(this);
     parser->parseTSVFile(this->tsvFilePath,this->positions,this->directions);
@@ -138,6 +137,25 @@ void qSlicerPancreaticLUSModuleWidget::generateVolume()
         return;
     }
 
+    if(d->nearestRadioButton->isChecked()) this->interpolationMethod = 0;
+    else if(d->trilinearRadioButton->isChecked()) this->interpolationMethod = 1;
+
+    if(d->meanRadioButton->isChecked()) this->compositionMethod = MEAN;
+    else this->compositionMethod = MAXIMUM;
+
+    generateFromFile();
+
+    this->positions->Initialize();
+    this->directions->Initialize();
+
+    saveSettings();
+    d->progressBar->setValue(100);
+}
+
+void qSlicerPancreaticLUSModuleWidget::generateFromFile()
+{
+    Q_D(qSlicerPancreaticLUSModuleWidget);
+
     this->firstImageToProcess = d->firstImageSpinBox->value();
     this->lastImageToProcess = d->lastImageSpinBox->value();
     if( !( (this->firstImageToProcess <= this->lastImageToProcess) && (this->lastImageToProcess <= this->positions->GetNumberOfPoints()) ))
@@ -146,10 +164,8 @@ void qSlicerPancreaticLUSModuleWidget::generateVolume()
         messageBox.critical(0,"Error","Error in number of images");
         return;
     }
-    if(d->nearestRadioButton->isChecked()) this->interpolationMethod = 0;
-    else if(d->trilinearRadioButton->isChecked()) this->interpolationMethod = 1;
 
-    setOutputExtent();
+    setOutputExtentFromFile();
     d->progressBar->setValue(25);
 
     int progress = 25;
@@ -157,7 +173,7 @@ void qSlicerPancreaticLUSModuleWidget::generateVolume()
     {
         this->currentImage = readPNGImages(this->folderPath, i);
         if(this->currentImage == 0) return;
-        this->sliceAdder->pasteSlice(currentImage,transformImageToReference,interpolationMethod);
+        this->sliceAdder->pasteSlice(currentImage,transformImageToReference,interpolationMethod,compositionMethod);
         progress = 25 + 75*(i - this->firstImageToProcess)/(this->lastImageToProcess - this->firstImageToProcess);
         d->progressBar->setValue(progress);
     }
@@ -191,18 +207,11 @@ void qSlicerPancreaticLUSModuleWidget::generateVolume()
 
     this->mrmlScene()->AddNode(volumeNode.GetPointer());
 
-    vtkSlicerApplicationLogic* appLogic = qSlicerCoreApplication::application()->applicationLogic();
+    vtkSlicerApplicationLogic* appLogic = qSlicerCoreApplication::application()->applicationLogic(); // parece ser que es vtkMRMLApplicationLogic, no sé
     vtkMRMLSelectionNode* selectionNode = appLogic->GetSelectionNode();
     selectionNode->SetReferenceActiveVolumeID(volumeNode->GetID());
     appLogic->PropagateVolumeSelection();
     appLogic->FitSliceToAll();
-
-    this->positions->Initialize();
-    this->directions->Initialize();
-
-    saveSettings();
-    d->progressBar->setValue(100);
-    this->blockSignals(false);
 }
 
 vtkSmartPointer<vtkImageData> qSlicerPancreaticLUSModuleWidget::readPNGImages(QString directory, int index)
@@ -232,7 +241,7 @@ vtkSmartPointer<vtkImageData> qSlicerPancreaticLUSModuleWidget::readPNGImages(QS
 
     // Calculate the tracker coordinates traslated to the superior corner of the image
     traslatedPos[2] = pos[2] - 10;
-    traslatedPos[0] = (rot[2]/rot[0])*-10+pos[2];
+    traslatedPos[0] = (rot[2]/rot[0])*-10+pos[0];
     traslatedPos[1] = (rot[1]/rot[0])*-10+pos[1];
 
 //    qDebug() << pos[0] << pos[1] << pos[2] << "|" << traslatedPos[0] << traslatedPos[1] << traslatedPos[2];
@@ -257,7 +266,7 @@ vtkSmartPointer<vtkImageData> qSlicerPancreaticLUSModuleWidget::readPNGImages(QS
     return outImage;
 }
 
-void qSlicerPancreaticLUSModuleWidget::setOutputExtent()
+void qSlicerPancreaticLUSModuleWidget::setOutputExtentFromFile()
 {
     Q_D(qSlicerPancreaticLUSModuleWidget);
 
@@ -314,8 +323,11 @@ void qSlicerPancreaticLUSModuleWidget::setOutputExtent()
     }
 
     double* outputSpacing = this->ReconstructedVolume->GetSpacing();
+    this->outputExtent[0] = 0;
     this->outputExtent[1] = int((extent_Ref[1] - extent_Ref[0]) / outputSpacing[0]);
+    this->outputExtent[2] = 0;
     this->outputExtent[3] = int((extent_Ref[3] - extent_Ref[2]) / outputSpacing[1]);
+    this->outputExtent[4] = 0;
     this->outputExtent[5] = int((extent_Ref[5] - extent_Ref[4]) / outputSpacing[2]);
 
     this->ReconstructedVolume->SetOrigin(extent_Ref[0], extent_Ref[2], extent_Ref[4]);
@@ -351,7 +363,6 @@ void qSlicerPancreaticLUSModuleWidget::loadSettings()
     Q_D(qSlicerPancreaticLUSModuleWidget);
 
     d->firstImageSpinBox->setValue(this->settings->value("firstImage",0).toInt());
-    d->lastImageSpinBox->setValue(this->settings->value("lastImage",1700).toInt());
     int interpolation = this->settings->value("interpolationMethod",0).toInt();
     if(interpolation == 0) d->nearestRadioButton->setChecked(true);
     else if(interpolation == 1)  d->trilinearRadioButton->setChecked(true);

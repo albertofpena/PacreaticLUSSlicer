@@ -28,6 +28,7 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QSettings>
+#include <QTimer>
 
 // VTK includes
 #include <vtkSmartPointer.h>
@@ -49,6 +50,7 @@
 #include <vtkMetaImageWriter.h>
 #include <vtkNew.h>
 #include <vtkSlicerApplicationLogic.h>
+#include <vtkMRMLApplicationLogic.h>
 #include <vtkMRMLSelectionNode.h>
 #include <vtkImageReslice.h>
 
@@ -96,6 +98,7 @@ private:
   int firstImageToProcess;
   int lastImageToProcess;
   int interpolationMethod;
+  CompoundingType compositionMethod;
   int outputExtent[6];
   double *origin;
   vtkSmartPointer<vtkImageData> ReconstructedVolume;
@@ -111,13 +114,14 @@ private:
   QString tsvFilePath;
 
   InsertSlice *sliceAdder;
-  pancreaticImage imageDataSet[1700];
 
+  QTimer *realTimeTimer;
   QSettings *settings;
 
   vtkSmartPointer<vtkImageData> readPNGImages(QString directory, int index);
 
-  void setOutputExtent();
+  void generateFromFile();
+  void setOutputExtentFromFile();
   void loadSettings();
   void saveSettings();
 };

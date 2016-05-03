@@ -9,6 +9,8 @@
 #define ACCUMULATION_MAXIMUM 65535
 #define ACCUMULATION_THRESHOLD 65279
 
+enum CompoundingType { MEAN, MAXIMUM };
+
 struct vtkPasteSliceIntoVolumeInsertSliceParams
 {
     // information on the volume
@@ -39,70 +41,78 @@ static int nearestNeighborInterpolation(F *point,
                                         int numscalars,
                                         int outExt[6],
                                         vtkIdType outInc[3],
-                                        unsigned int* accOverflowCount)
+                                        unsigned int* accOverflowCount,
+                                        CompoundingType compositionMethod)
 {
     int i;
     int outIdX = round(point[0]) - outExt[0];
     int outIdY = round(point[1]) - outExt[2];
     int outIdZ = round(point[2]) - outExt[4];
 
-    //qDebug() << "outIdX, outIdY, outIdZ:" << outIdX << outIdY << outIdZ;
-    if ((outIdX | (outExt[1]-outExt[0] - outIdX) |
-         outIdY | (outExt[3]-outExt[2] - outIdY) |
-         outIdZ | (outExt[5]-outExt[4] - outIdZ)) >= 0)
-    {
-        int inc = outIdX * outInc[0] + outIdY * outInc[1] + outIdZ * outInc[2];
-        outPtr += inc;
+    CompoundingType compoundingMode = compositionMethod;
 
-        // MEAN COMPOUND MODE
-        accPtr += inc/outInc[0];
-        if (*accPtr <= ACCUMULATION_THRESHOLD)
-        {
-            int newa = *accPtr + ACCUMULATION_MULTIPLIER;
-            if (newa > ACCUMULATION_THRESHOLD)
-                (*accOverflowCount) += 1;
+    // check bounds, if all positive go on
+	if ((outIdX | (outExt[1] - outExt[0] - outIdX) |
+		outIdY | (outExt[3] - outExt[2] - outIdY) |
+		outIdZ | (outExt[5] - outExt[4] - outIdZ)) >= 0)
+	{
+		int inc = outIdX * outInc[0] + outIdY * outInc[1] + outIdZ * outInc[2];
+		outPtr += inc;
+		
+		switch (compoundingMode)
+		{
+        case (MEAN) :
+			{
+				accPtr += inc / outInc[0];
+				if (*accPtr <= ACCUMULATION_THRESHOLD) // check if accPtr value is lower than the threshold
+				{
+					int newa = *accPtr + ACCUMULATION_MULTIPLIER;
+					if (newa > ACCUMULATION_THRESHOLD)
+						(*accOverflowCount) += 1;
 
-            for (i = 0; i < numscalars; i++)
-            {
-                *outPtr = ((*inPtr++)*ACCUMULATION_MULTIPLIER + (*outPtr)*(*accPtr))/newa;
-                outPtr++;
-            }
+					for (i = 0; i < numscalars; i++)
+					{
+						*outPtr = ((*inPtr++)*ACCUMULATION_MULTIPLIER + (*outPtr)*(*accPtr)) / newa;
+						outPtr++;
+					}
 
-            *accPtr = ACCUMULATION_MAXIMUM;
-            if (newa < ACCUMULATION_MAXIMUM)
-            {
-                *accPtr = newa;
-            }
-        }
-        else
-        {// overflow, use recursive filtering with 255/256 and 1/256 as the weights, since 255 voxels have been inserted so far
-            // TODO: Should do this for all the scalars, and accumulation?
-            // FIXME Magic Numbers
-            *outPtr = (T)(0.99609375 * (*inPtr++) + 0.00390625 * (*outPtr));
-        }
+					*accPtr = ACCUMULATION_MAXIMUM;
+					if (newa < ACCUMULATION_MAXIMUM)
+					{
+						*accPtr = newa;
+					}
+				}
+				else
+				{// overflow, use recursive filtering with 255/256 and 1/256 as the weights, since 255 voxels have been inserted so far
+					// TODO: Should do this for all the scalars, and accumulation?
+					// FIXME Magic Numbers
+					*outPtr = (T)(0.99609375 * (*inPtr++) + 0.00390625 * (*outPtr));
+				}
+				break;
+			}
+        case (MAXIMUM) :
+			{
+				accPtr += inc / outInc[0];
+				int newa = *accPtr + ACCUMULATION_MULTIPLIER;
+				if (newa > ACCUMULATION_THRESHOLD)
+					(*accOverflowCount) += 1;
 
-        // MAXIMUM COMPOUND MODE
-        /*accPtr += inc/outInc[0];
-        int newa = *accPtr + ACCUMULATION_MULTIPLIER;
-        if (newa > ACCUMULATION_THRESHOLD)
-            (*accOverflowCount) += 1;
+				for (i = 0; i < numscalars; i++)
+				{
+					if (*inPtr > *outPtr)
+						*outPtr = *inPtr;
+					inPtr++;
+					outPtr++;
+				}
 
-        for (i = 0; i < numscalars; i++)
-        {
-            if (*inPtr > *outPtr)
-                *outPtr = *inPtr;
-            inPtr++;
-            outPtr++;
-        }
-
-        *accPtr = ACCUMULATION_MAXIMUM;
-        if (newa < ACCUMULATION_MAXIMUM)
-            *accPtr = newa;*/
-
-
+				*accPtr = ACCUMULATION_MAXIMUM;
+				if (newa < ACCUMULATION_MAXIMUM)
+					*accPtr = newa;
+				break;
+			}
+		}
         return 1;
     }
-    //qDebug() << "No hit";
     return 0;
 }
 
@@ -114,7 +124,8 @@ static int trilinearInterpolation(F *point,
                                   int numscalars,
                                   int outExt[6],
                                   vtkIdType outInc[3],
-                                  unsigned int* accOverflowCount)
+                                  unsigned int* accOverflowCount,
+                                  CompoundingType compositionMethod)
 {
     // Determine if the output is a floating point or integer type. If floating point type then we don't round
     // the interpolated value.
@@ -125,6 +136,8 @@ static int trilinearInterpolation(F *point,
         // output is a floating point number
         roundOutput=false;
     }
+
+    CompoundingType compoundingMode = compositionMethod;
 
     F fx, fy, fz;
 
@@ -154,41 +167,31 @@ static int trilinearInterpolation(F *point,
         int factY1 = outIdY1*outInc[1];
         int factZ1 = outIdZ1*outInc[2];
 
-        int factY0Z0 = factY0 + factZ0;
-        int factY0Z1 = factY0 + factZ1;
-        int factY1Z0 = factY1 + factZ0;
-        int factY1Z1 = factY1 + factZ1;
-
         // increment between the output pointer and the 8 pixels to work on
         int idx[8];
-        idx[0] = factX0 + factY0Z0;
-        idx[1] = factX0 + factY0Z1;
-        idx[2] = factX0 + factY1Z0;
-        idx[3] = factX0 + factY1Z1;
-        idx[4] = factX1 + factY0Z0;
-        idx[5] = factX1 + factY0Z1;
-        idx[6] = factX1 + factY1Z0;
-        idx[7] = factX1 + factY1Z1;
+        idx[0] = factX0 + factY0 + factZ0;
+        idx[1] = factX0 + factY0 + factZ1;
+        idx[2] = factX0 + factY1 + factZ0;
+        idx[3] = factX0 + factY1 + factZ1;
+        idx[4] = factX1 + factY0 + factZ0;
+        idx[5] = factX1 + factY0 + factZ1;
+        idx[6] = factX1 + factY1 + factZ0;
+        idx[7] = factX1 + factY1 + factZ1;
 
         // remainders from the fractional components - difference between the fractional value and the ceiling
         F rx = 1 - fx;
         F ry = 1 - fy;
         F rz = 1 - fz;
 
-        F ryrz = ry*rz;
-        F ryfz = ry*fz;
-        F fyrz = fy*rz;
-        F fyfz = fy*fz;
-
         F fdx[8]; // fdx is the weight towards the corner
-        fdx[0] = rx*ryrz;
-        fdx[1] = rx*ryfz;
-        fdx[2] = rx*fyrz;
-        fdx[3] = rx*fyfz;
-        fdx[4] = fx*ryrz;
-        fdx[5] = fx*ryfz;
-        fdx[6] = fx*fyrz;
-        fdx[7] = fx*fyfz;
+        fdx[0] = rx*ry*rz;
+        fdx[1] = rx*ry*fz;
+        fdx[2] = rx*fy*rz;
+        fdx[3] = rx*fy*fz;
+        fdx[4] = fx*ry*rz;
+        fdx[5] = fx*ry*fz;
+        fdx[6] = fx*fy*rz;
+        fdx[7] = fx*fy*fz;
 
         F f, r, a;
         T *inPtrTmp, *outPtrTmp;
@@ -206,25 +209,41 @@ static int trilinearInterpolation(F *point,
             }
             inPtrTmp = inPtr;
             outPtrTmp = outPtr+idx[j];
-            accPtrTmp = accPtr+ ((idx[j]/outInc[0])); // removed cast to unsigned short - prevented larger increments in Z direction
+            accPtrTmp = accPtr+ ((idx[j]/outInc[0]));
             a = *accPtrTmp;
 
             int i = numscalars;
             do
             {
                 i--;
-                f = fdx[j];
-                r = F((*accPtrTmp)/(double)ACCUMULATION_MULTIPLIER);  // added division by double, since this always returned 0 otherwise
-                a = f + r;
-                if (roundOutput)
-                {
-                    *outPtrTmp = round((f*(*inPtrTmp) + r*(*outPtrTmp))/a);
-                }
-                else
-                {
-                    *outPtrTmp = (f*(*inPtrTmp) + r*(*outPtrTmp))/a;
-                }
-                a *= ACCUMULATION_MULTIPLIER; // needs to be done for proper conversion to unsigned short for accumulation buffer
+				switch (compoundingMode)
+				{
+				case MEAN:
+					f = fdx[j];
+					r = F((*accPtrTmp) / (double)ACCUMULATION_MULTIPLIER);  // added division by double, since this always returned 0 otherwise
+					a = f + r;
+					if (roundOutput)
+					{
+						*outPtrTmp = round((f*(*inPtrTmp) + r*(*outPtrTmp)) / a);
+					}
+					else
+					{
+						*outPtrTmp = (f*(*inPtrTmp) + r*(*outPtrTmp)) / a;
+					}
+					a *= ACCUMULATION_MULTIPLIER; // needs to be done for proper conversion to unsigned short for accumulation buffer
+					break;
+				case MAXIMUM:
+					const F minWeight(0.125);
+					if (fdx[j] >= minWeight && *inPtrTmp > *outPtrTmp)
+					{
+						*outPtrTmp = *inPtrTmp;
+						f = fdx[j];
+						a = f * ACCUMULATION_MULTIPLIER;
+					}
+					break;
+				}
+				++inPtrTmp;
+				++outPtrTmp;
             }
             while(i);
 
@@ -247,7 +266,7 @@ static int trilinearInterpolation(F *point,
 }
 
 template <class F, class T>
-static void outputSliceTransformation(vtkPasteSliceIntoVolumeInsertSliceParams *insertionParams, int interpolationMethod)
+static void outputSliceTransformation(vtkPasteSliceIntoVolumeInsertSliceParams *insertionParams, int interpolationMethod, CompoundingType compositionMethod)
 {
 //    QFile file("out.m");
 //    file.open(QIODevice::WriteOnly | QIODevice::Text);
@@ -282,6 +301,7 @@ static void outputSliceTransformation(vtkPasteSliceIntoVolumeInsertSliceParams *
 
     vtkIdType outInc[3] = {0};
     outData->GetIncrements(outInc);
+ //   qDebug() << outInc[0] << outInc[1] << outInc[2];
 
     vtkIdType inIncX = 0, inIncY = 0, inIncZ = 0;
     inData->GetContinuousIncrements(inExt, inIncX, inIncY, inIncZ);
@@ -301,6 +321,7 @@ static void outputSliceTransformation(vtkPasteSliceIntoVolumeInsertSliceParams *
                 inPoint[1] = idY;
                 inPoint[2] = idZ;
 
+                // multiplying vector with 3 components by 4x4 matrix
                 for (int i = 0; i < 4; i++)
                 {
                     int rowindex = i << 2;
@@ -319,13 +340,13 @@ static void outputSliceTransformation(vtkPasteSliceIntoVolumeInsertSliceParams *
                 // FIXME magic numbers
                 switch (interpolationMethod) {
                 case 0:
-                    hit += nearestNeighborInterpolation<double, T>(point, inPtr, outPtr, accPtr, numscalars, outExt, outInc, accOverflowCount);
+                    hit += nearestNeighborInterpolation<double, T>(point, inPtr, outPtr, accPtr, numscalars, outExt, outInc, accOverflowCount, compositionMethod);
                     break;
                 case 1:
-                    hit += trilinearInterpolation<double, T>(point, inPtr, outPtr, accPtr, numscalars, outExt, outInc, accOverflowCount);
+                    hit += trilinearInterpolation<double, T>(point, inPtr, outPtr, accPtr, numscalars, outExt, outInc, accOverflowCount, compositionMethod);
                     break;
                 default:
-                    hit += nearestNeighborInterpolation<double, T>(point, inPtr, outPtr, accPtr, numscalars, outExt, outInc, accOverflowCount);
+                    hit += nearestNeighborInterpolation<double, T>(point, inPtr, outPtr, accPtr, numscalars, outExt, outInc, accOverflowCount, compositionMethod);
                     break;
                 }
             }

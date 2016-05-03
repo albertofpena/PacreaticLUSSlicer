@@ -62,13 +62,13 @@ qSlicerPancreaticLUSModule::~qSlicerPancreaticLUSModule()
 //-----------------------------------------------------------------------------
 QString qSlicerPancreaticLUSModule::helpText() const
 {
-  return "This is a loadable module that can be bundled in an extension";
+  return "This loadable module takes a set of LUS jpeg video frames and a tsv tracker file to create a 3D Volume.";
 }
 
 //-----------------------------------------------------------------------------
 QString qSlicerPancreaticLUSModule::acknowledgementText() const
 {
-  return "This work was partially funded by NIH grant NXNNXXNNNNNN-NNXN";
+  return "ETSIT-TFB-GBT";
 }
 
 //-----------------------------------------------------------------------------
